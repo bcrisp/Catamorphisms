@@ -1,1 +1,611 @@
-My GitHub Page
+<html>
+<!-- Brandon Crisp -->
+<link rel="stylesheet" href="lib/codemirror.css">
+<link rel="stylesheet" href="bootstrap.min.css">
+
+<script src="esprima.js"></script>
+<script src="lib/codemirror.js"></script>
+<script src="javascript.js"></script>
+
+
+<div class="left">
+  <select id="selector" onChange="ChangeDisplay()">
+    <option value="tree">Tree Layout</option>
+    <option value="asymmetricTree">Asymmetric Tree</option>
+    <option value="graph">Force-directed Graph (Experimental)</option>
+  </select>
+
+  <div id="codeBox">
+    <form id="inputArea">
+      <textarea id="code" name="code">
+// the Fibonnaci sequence
+var fibonnaci = 1 * 1 * 2;
+alert(fibonnaci);
+      </textarea>
+    </form>
+  </div>
+
+</div>
+
+
+<style>
+
+
+body {margin: 15px;}
+circle {
+  fill: #fff;
+  stroke: steelblue;
+  stroke-width: 4.5px;
+}
+
+.node {
+  font: 10px sans-serif;
+}
+
+line {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 1.5px;
+}
+
+.link {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 1.5px;
+}
+
+#codeBox{box-shadow: 1px 1px 2px #888888;
+}
+
+.left {float:left;
+  width:30%;
+  height: 100%;}
+
+  form {height: 400px; }
+
+  select{width: 100%;}
+
+
+  textarea {font-size: 18px; }
+/*  svg {float: left;}*/
+}
+</style>
+<script src="d3.v3.min.js"></script>
+
+<script>
+
+// set the initial visualization to Tree Layout
+var graphLayout = "tree";
+
+var margin = {
+  top: 30,
+  right: 100,
+  bottom: 100,
+  left: 100
+};
+
+var width = 1000 - margin.left - margin.right,
+height = 700 - margin.top - margin.bottom;
+var nodes = [];
+var links = [];
+
+var
+r = 6,
+fill = d3.scale.category20();
+
+var force, svg, tree, node, link = {};
+
+var TreeViz = {};
+
+TreeViz.DrawTree = (function(funArg) {
+
+
+  var treeData = esprima.parse(editor.getValue(), {
+    tolerant: true
+  });
+
+function PushProgramArray(a, b) {
+  var re = {};
+  re.name = a.type;
+  re.children = b;
+
+  if (nodes.indexOf(re) == -1)
+    nodes.push(re);
+
+  var l = {
+    source: re,
+    target: b
+  };
+
+  if (links.indexOf(l) == -1)
+    links.push(l);
+
+  return re;
+
+}
+
+function PushArrayArgument(a, b, c) {
+  var re = {};
+  re.name = a.type;
+  re.children = b;
+  re.children.push(c);
+
+  return re;
+
+}
+
+function Push2Nodes(a, b) {
+
+  var re = {};
+  re.name = a.type;
+  re.children = a.children;
+
+  if (re.children == undefined) {
+    re.children = [b];
+  } else re.children.push(b);
+  return re;
+}
+
+function Push2Links(a, b) {
+  a.nodes = [a];
+  a.links = [];
+
+  a.links = a.nodes.concat(b.nodes);
+
+  a.links = b.links;
+  a.nodes = b.nodes;
+  a.links.push({
+    source: a,
+    target: b
+  });
+
+  return a;
+}
+
+
+function PushNodesPartialApplication(property, a, b, c) {
+  
+return function (a, b, c){
+  var re = {};
+  re.name = a.property;
+  if (a.children == undefined)
+    re.children = [b, c];
+
+  else {
+    re.children = a.children;
+    re.children.push(b, c);
+  }
+  return re;
+}
+}
+
+
+
+function PushNode(a) {
+  var re = {};
+  re.name = a.value;
+  return re;
+}
+
+
+  priorTree = treeData;
+  accumulator = FoldExpr(PushProgramArray, Push2Nodes, PushArrayArgument, PushProgramArray, 
+    PushNodesPartialApplication("type"), 
+    PushNodesPartialApplication("operator"),
+    PushNodeIdentifier, PushNode, treeData);
+
+
+  var diagonal = d3.svg.diagonal()
+  .projection(function(d) {
+    return [d.x, d.y + 10];
+  });
+
+  d3.select("svg").remove();
+
+  AppendSVG();
+
+  // apply the supplied argument, created the specified layout type
+  funArg();
+
+  // dan: 1:12 1:16 2:01
+  // brandon 1:26 1:08 1:29
+  // bill 1:32 1:47 1:35
+  // nick :40 1:46 1:20
+
+  node = svg.selectAll(".node"),
+  link = svg.selectAll(".link");
+
+  node = node.data(tree.nodes(accumulator));
+  link = link.data(tree.links(tree.nodes(accumulator)));
+
+  node
+  .enter().append("g")
+  .attr("class", "node")
+  .attr("transform", function(d) {
+    return "translate(" + d.x + "," + d.y + 10 + ")";
+  })
+
+  node.enter()
+  .append("circle")
+  .attr("r", 4.5)
+  .attr("transform", function(d) {
+    return "translate(" + d.x + "," + (d.y + 10) + ")";
+  });
+
+  node.enter()
+  .append("text")
+  .attr("dx", 3)
+  .attr("dy", 3)
+  .style("text-anchor", "end")
+  .text(function(d) {
+    return d.name;
+  })
+  .attr("dx", "-1em")
+  .attr("transform", function(d) {
+    return "translate(" + d.x + "," + (d.y + 10) + ")";
+  });
+
+  link
+  .enter().append("path")
+  .attr("class", "link")
+  .attr("d", diagonal);
+})
+
+TreeViz.DrawGraph = function (funArg){
+  var treeData = esprima.parse(editor.getValue(), {
+    tolerant: true
+  });
+
+  d3.select("svg").remove();
+
+  AppendSVG();
+
+  funArg();
+
+function PushLinkArray(a, b) {
+  a.nodes = [a];
+  a.links = [];
+
+  b.forEach(function(e) {
+    a.links.push({
+      source: a,
+      target: e
+    });
+    a.links = a.links.concat(e.links);
+    a.nodes.push(e);
+    e.nodes.forEach(function(d) {
+      a.nodes.push(d);
+    })
+  });
+
+  return a;
+
+}
+
+function PushArrayandLink(a, b, c) {
+  a = PushLinkArray(a, b);
+  a.nodes.push([a, c]);
+  return [a];
+}
+
+
+function PushThree(a, b, c) {
+
+  a.nodes = b.nodes.concat(c.nodes, [a]);
+  a.links = [];
+
+  a.links = a.links.concat(b.links, c.links);
+  a.links.push({
+    source: a,
+    target: b
+  });
+  a.links.push({
+    source: a,
+    target: c
+  });
+
+  return a;
+}
+
+function Instantiate(a) {
+  a.nodes = [a];
+  a.links = [];
+  return a;
+}
+
+  accumulator = FoldExpr(PushLinkArray, PushLinkArray, PushArrayandLink, PushLinkArray, PushThree, PushThree, Instantiate, Instantiate, treeData);
+  priorTree = treeData;
+
+  // update the nodes and links for the force layout
+  force.nodes(accumulator.nodes);
+  force.links(accumulator.links);
+
+  // update the selections
+  node = svg.selectAll("circle");
+  link = svg.selectAll("line");
+
+  link
+  .data(force.links())
+  .enter().append("svg:line")
+  .append("text")
+  .text(function(d) {
+    return d.source.type + "-" + d.target.type
+  });
+  node = node.data(force.nodes());
+
+
+  node.enter().append("svg:circle")
+  .attr("r", 6)
+  .style("fill", function(d) {
+    return fill(d.group);
+  })
+  .style("stroke", function(d) {
+    return d3.rgb(fill(d.group)).darker();
+  });
+
+  node.enter()
+  .append("svg:text")
+  .attr("class", "nodetext")
+  .attr("dx", 12)
+  .attr("dy", ".35em")
+  .text(function(d) {
+    return d.type
+  })
+  .attr("transform", function(d) {
+    return "translate(" + d.x + "," + d.y + 10 + ")";
+  })
+  .call(force.drag);
+
+  force
+  .nodes(accumulator.nodes)
+  .links(accumulator.links)
+  .linkDistance(8)
+  .charge(-300)
+  .on("tick", tick)
+  .start();
+}
+
+
+function ChangeDisplay() {
+
+  var x = document.getElementById('selector');
+  graphLayout = x.options[x.options.selectedIndex].value;
+  d3.select("svg").remove();
+  Redraw();
+
+}
+
+
+var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+  lineNumbers: true,
+  matchBrackets: true,
+  mode: "text/javascript",
+});
+
+editor.on("change", Redraw);
+
+var accumulator = {};
+
+
+
+function FoldExpr(program, expressionstatement, callexpression, variableDeclaration, variableDeclarator, binaryExpression, identifier, literal, expression) {
+
+  function Loop(expression, cont) {
+
+    // if this is an array with a single element
+    if (expression.length == 1) {
+      return cont([Loop(expression[0], function(x) {
+        return x;
+      })])
+    }
+
+    // if an array with multiple elements, feed the first one and execute the as a continuation
+    if (expression.length > 1)
+      return cont(Loop(expression[0], function(l) {
+        return Loop(expression.slice(1), cont).concat(l)
+      }));
+
+    // for "unboxed" expressions (non-array)
+    switch (expression.type) {
+
+      case "Program":
+      // Program :: <type> <body> <kind>
+      return cont(program(expression, Loop(expression.body, 
+        function(body) {
+          return body;
+        })));
+      break;
+
+      case "VariableDeclaration":
+      // VariableDeclaration ::= <type> [declarations]
+      return Loop(expression.declarations, 
+        function(declarations) {
+          return cont(variableDeclaration(expression, declarations))
+        });
+      break;
+
+      case "VariableDeclarator":
+      // VariableDeclarator ::= <Identifier> <Expression>
+      return Loop(expression.id,
+        function(id) {
+          return Loop(expression.init,
+            function(init) {
+              return cont(variableDeclarator(expression, id, init))
+            })
+        });
+      break;
+
+      case "BinaryExpression":
+      // BinaryExpression ::= <Type> <Operator> <Literal> <Literal>
+      return Loop(expression.left,
+        function(left) {
+          return Loop(expression.right,
+            function(right) {
+              return cont(binaryExpression(expression, left, right))
+            })
+        });
+      break;
+
+      case "Identifier":
+      // Identifier ::= <Type> <Name>
+      return cont(identifier(expression));
+      break;
+
+      case "Literal":
+      // Literal ::= <Type> <Value> <Raw>
+      return cont(literal(expression));
+      break;
+
+      case "ExpressionStatement":
+      // ExpressionStatement ::= <Type> <Expression>
+      return Loop(expression.expression,
+        function(x) {
+          return cont(expressionstatement(expression, x))
+        });
+      break;
+
+      case "CallExpression":
+      // CallExpression ::= <Type> <Identifier> <Identifier>
+      return Loop(expression.arguments,
+        function(x) {
+          return Loop(expression.callee,
+            function(y) {
+              return cont(callexpression(expression, x, y))
+            })
+        });
+      break;
+    }
+  };
+
+
+  return Loop(expression, function(x) {return x;});
+};
+
+
+function AppendSVG() {
+  svg = d3.select("body").append("svg:svg")
+  .attr("width", width)
+  .attr("height", height)
+  .append("g")
+  .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+}
+
+function PushNodeIdentifier(a) {
+
+  var re = {};
+  re.name = a.name;
+  return re;
+}
+
+accumulator.nodes = {};
+accumulator.links = {};
+
+function DrawTree() {
+
+  TreeViz.DrawTree(function() {
+    tree = d3.layout.tree()
+    .size([width - 50, height - 50]);
+
+  });
+
+}
+
+function DrawAsymmetricTree() {
+
+  TreeViz.DrawTree(function() {
+    tree = d3.layout.cluster()
+    .size([width - 50, height - 50]);
+  });
+
+}
+
+function DrawGraph() {
+
+TreeViz.DrawGraph(function (){
+  force = d3.layout.force()
+  .charge(-120)
+  .linkDistance(30)
+  .size([width, height]);
+});
+
+}
+
+
+function Redraw() {
+
+  switch (graphLayout) {
+    case "graph":
+    DrawGraph()
+    break;
+
+    case "tree":
+    DrawTree();
+    break;
+
+    case "asymmetricTree":
+    DrawAsymmetricTree();
+    break;
+  }
+};
+
+function tick(e) {
+  if (graphLayout == "graph") {
+
+
+    node = svg.selectAll("circle");
+    link = svg.selectAll("line");
+    text = svg.selectAll("text");
+
+    // Push sources up and targets down to form a weak tree.
+    var k = 20 * e.alpha;
+    force.links().forEach(function(d, i) {
+
+      if (i == 0)
+        d.source.y = 50;
+
+      d.source.y -= k;
+      d.target.y += k;
+    });
+
+    node.attr("cx",
+      function(d) {
+        return d.x;
+      })
+    .attr("cy",
+      function(d) {
+        return d.y;
+      });
+
+    text.attr("x",
+      function(d) {
+        return d.x;
+      })
+    .attr("y",
+      function(d) {
+        return d.y;
+      });
+
+    link.attr("x1", function(d) {
+      return d.source.x;
+    })
+    .attr("y1", function(d) {
+      return d.source.y;
+    })
+    .attr("x2", function(d) {
+      return d.target.x;
+    })
+    .attr("y2", function(d) {
+      return d.target.y;
+    });
+
+
+  }
+}
+
+// start out by drawing the tree
+DrawTree();
+
+</script>
+
+</html>
